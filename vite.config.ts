@@ -217,12 +217,19 @@ type FunctionHandler = (event: {
 
 function vitePluginLocalLookupFunction(): Plugin {
   let handlerPromise: Promise<FunctionHandler> | undefined;
+  const functionPath = path.resolve(PROJECT_ROOT, "netlify/functions/query.mjs");
+  const bundlePath = path.resolve(PROJECT_ROOT, "netlify/functions/xmidas_real.js");
 
   const loadHandler = () => {
-    handlerPromise ??= import(
-      /* @vite-ignore */
-      pathToFileURL(path.resolve(PROJECT_ROOT, "netlify/functions/query.mjs")).href
-    ).then((module) => module.handler as FunctionHandler);
+    handlerPromise ??= (async () => {
+      const missing = [functionPath, bundlePath].filter((filePath) => !fs.existsSync(filePath));
+      if (missing.length > 0) {
+        throw new Error(`Local lookup files are missing. Copy these files into the project:\n${missing.join("\n")}`);
+      }
+
+      const module = await import(/* @vite-ignore */ pathToFileURL(functionPath).href);
+      return module.handler as FunctionHandler;
+    })();
     return handlerPromise;
   };
 
@@ -258,23 +265,22 @@ function vitePluginLocalLookupFunction(): Plugin {
           });
 
           res.statusCode = result.statusCode || 200;
-          for (const [key, value] of Object.entries(result.headers || {})) {
-            res.setHeader(key, value);
-          }
+          for (const [key, value] of Object.entries(result.headers || {})) res.setHeader(key, value);
           res.end(result.body ?? "");
         } catch (error) {
           console.error("Local player lookup function failed", error);
           res.writeHead(502, { "Content-Type": "application/json; charset=utf-8" });
-          res.end(JSON.stringify({ success: false, error: "The local lookup function failed." }));
+          const message = error instanceof Error ? error.message : "The local lookup function failed.";
+          res.end(JSON.stringify({ success: false, error: message }));
         }
       });
     },
   };
 }
 
-// Netlify's redirect middleware is intentionally not attached to the plain Vite server.
-// This local middleware exposes the same `/api/query` contract and avoids the
-// `decodeURIComponent` crash caused by malformed Windows URL requests.
+// Netlify's middleware is intentionally not attached to the plain Vite server.
+// Use `netlify dev` for full function emulation; keeping it out of `pnpm run dev`
+// avoids redirect decoding crashes on malformed Windows URL requests.
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy(), vitePluginLocalLookupFunction()];
 
 export default defineConfig({

@@ -50,9 +50,27 @@ pnpm install
 pnpm run dev
 ```
 
-The frontend opens on the Vite development URL. The project now also mounts the same `/api/query?id=<player-id>` contract into this plain Vite server, so you can test the complete React-to-function lookup locally without starting the old Python API.
+Before starting, confirm that both server-side files exist in the copied project:
 
-Plain `pnpm run dev` intentionally runs without Netlify's redirect middleware. This avoids a known local URI-decoding crash when malformed percent-encoded URLs are received by that middleware, particularly on Windows paths. A small Vite middleware invokes the same function handler directly, so `/api/query` still works locally. Use the Netlify CLI only when you specifically want full Netlify emulation.
+```text
+netlify/functions/query.mjs
+netlify/functions/xmidas_real.js
+```
+
+On Windows CMD, check them with:
+
+```cmd
+dir netlify\functions\query.mjs
+dir netlify\functions\xmidas_real.js
+```
+
+Do not copy only the `client` folder. The `netlify` folder is required for local and production lookup.
+
+The frontend opens on the Vite development URL, and the project mounts the same `/api/query?id=<player-id>` contract into plain Vite so the complete React-to-function lookup can be tested locally without the old Python API.
+
+Plain `pnpm run dev` intentionally runs without Netlify's redirect middleware. This avoids a known local URI-decoding crash when malformed percent-encoded URLs are received by that middleware, particularly on Windows paths. A small Vite middleware invokes the same function handler directly, so `/api/query` works locally. If the required files are missing, the route returns a clear setup error instead of an opaque module-import stack trace.
+
+Use only one local mode at a time. For the simplest test, run `pnpm run dev` and call `http://localhost:3000/api/query?id=5333302466`. For full Netlify emulation, stop the plain Vite process first, then run `npx netlify-cli dev`; the Netlify proxy uses port `8888` and starts Vite on target port `3000` according to `netlify.toml`. Do not run both commands simultaneously, because the second Vite process will move to port `3001` and Netlify will wait for the wrong port.
 
 ## Test the function locally
 
@@ -84,13 +102,13 @@ Expected successful data is shaped like:
 
 The actual project includes `test-netlify-function.mjs` for this smoke test. It is intended for verification only and can be removed before publishing if desired.
 
-For full local Netlify emulation, install or invoke the Netlify CLI and run:
+For full local function routing, install or invoke the Netlify CLI and run:
 
 ```bash
 npx netlify-cli dev
 ```
 
-Then open the local Netlify URL, usually `http://localhost:8888`. This step is optional; `pnpm run dev` already exposes the local `/api/query` route. The production deployment does not require either local command to remain running.
+Then open the local Netlify URL, usually `http://localhost:8888`. The production deployment does not require either local command to remain running.
 
 ## Deploy to Netlify
 
@@ -136,7 +154,7 @@ Do not move the token or signing implementation into the React bundle. Doing so 
 
 ## Troubleshooting
 
-If the browser reports a 404 for `/api/query`, confirm that the project was restarted after the latest `vite.config.ts` change and that `netlify/functions/query.mjs` and `netlify/functions/xmidas_real.js` exist. If the function returns a temporary-unavailable error, check the terminal output and verify that `jsdom` is installed. If the UI still references `localhost:8000`, redeploy the latest frontend build; the current implementation uses the relative `/api/query` route. If you use `npx netlify-cli dev`, open its displayed URL rather than port 3000; for plain `pnpm run dev`, use port 3000.
+If the browser reports a 404 for `/api/query`, confirm that the Netlify deployment root is the directory containing `netlify.toml` and that `netlify/functions/query.mjs` was included in the repository. If the function returns a temporary-unavailable error, check the Netlify function logs and verify that the build includes `jsdom` and `netlify/functions/xmidas_real.js`. If the UI still references `localhost:8000`, redeploy the latest frontend build; the current implementation uses the relative `/api/query` route. If plain `pnpm run dev` shows a Vite page but not the serverless response, that is expected; use `npx netlify-cli dev` for local function emulation.
 
 A successful local TypeScript check and production build can be run with:
 

@@ -6,6 +6,11 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[dev]
+  command = "pnpm run dev"
+  targetPort = 3000
+  port = 8888
+
 [[redirects]]
   from = "/api/query"
   to = "/.netlify/functions/query"
